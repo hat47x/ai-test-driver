@@ -1,0 +1,32 @@
+{
+  "name": "ai-test-driver",
+  "version": "0.1.0",
+  "description": "生成AI対応テストドライバ。CLI/Webで共通シナリオを実行し、結果・スクリーンショット・データ状態を検証する。",
+  "main": "dist/index.js",
+  "bin": {
+    "ai-test-driver": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start:web": "node dist/web/server.js",
+    "test": "node dist/cli/index.js run examples/demo-scenario.yaml"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "cors": "^2.8.5",
+    "execa": "^9.5.0",
+    "express": "^4.21.1",
+    "js-yaml": "^5.5.0",
+    "pg": "^8.13.0",
+    "playwright": "^1.49.1",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.6.0"
+  }
+}

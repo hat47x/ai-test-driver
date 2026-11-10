@@ -1,0 +1,47 @@
+# デモシナリオ: 値比較・JSON構造比較・状態検証
+
+name: demo-assertions
+description: 共通テストドライバの検証機能をデモするシナリオ
+tags: [demo, assertions]
+
+variables:
+  base_url: "http://localhost:4783"
+
+steps:
+  - name: ヘルスチェック
+    kind: api
+    params:
+      method: GET
+      url: "${base_url}/health"
+
+  - name: レスポンスボディ確認
+    kind: assertValue
+    params:
+      actual:
+        status: "ok"
+      expected:
+        status: "ok"
+
+  - name: JSON部分一致
+    kind: assertContains
+    params:
+      text: '{"status":"ok"}'
+      expected: '"status":"ok"'
+
+  - name: シェルコマンド実行
+    kind: shell
+    params:
+      command: "echo '{\"status\":\"ok\"}'"
+
+  - name: JSON構造比較
+    kind: assertJson
+    params:
+      actual:
+        status: "ok"
+      expected:
+        status: "ok"
+
+  - name: ウェイト
+    kind: wait
+    params:
+      ms: 50

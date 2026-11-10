@@ -1,0 +1,25 @@
+# デモシナリオ: ヘルスチェック + API呼び出し + データ検証
+
+name: demo-health-api
+description: ローカルWebサーバーの疎通とAPI応答を検証する共通シナリオ
+tags: [demo, smoke]
+
+variables:
+  base_url: "http://localhost:4783"
+
+steps:
+  - name: ヘルスチェック
+    kind: api
+    params:
+      method: GET
+      url: "${base_url}/health"
+
+  - name: レスポンスJSON確認
+    kind: shell
+    params:
+      command: "echo 'ヘルスチェック成功'"
+
+  - name: 任意ウェイト
+    kind: wait
+    params:
+      ms: 100

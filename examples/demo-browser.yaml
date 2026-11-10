@@ -1,0 +1,15 @@
+# デモシナリオ: ブラウザを開き、スクリーンショットを撮影する
+name: demo-browser
+description: Playwright ブラウザの起動とスクリーンショット
+tags: [demo, web]
+steps:
+  - name: about:blank を開く
+    kind: navigate
+    params:
+      path: "about:blank"
+
+  - name: スクリーンショット撮影
+    kind: screenshot
+    params:
+      name: "blank.png"
+      fullPage: false

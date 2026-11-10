@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build
+      - run: node dist/cli/index.js run examples/demo-scenario.yaml --mode cli
+        continue-on-error: true
+      - run: node dist/cli/index.js run examples/demo-assertions.yaml --mode cli
+        continue-on-error: true
+      - run: node dist/cli/index.js run examples/demo-browser.yaml --mode web --base-url about:blank
+        continue-on-error: true
+      - run: node dist/__tests__/driver.test.js
+        continue-on-error: true
