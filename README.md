@@ -6,24 +6,30 @@
 
 - **共通シナリオ定義**: YAML/JSON でシナリオを定義し、CLI と Web の両方から同一実行
 - **生成AIフレンドリ**: 実行結果を JSON で出力、短縮 AI サマリ (`*.ai-summary.json`) を生成
-- **ブラウザ検証**: Playwright による navigate / click / type / assert / screenshot
+- **ブラウザ検証**: Playwright による navigate / click / type / assert / screenshot（ヘッドレス）
 - **API/DB検証**: 任意の HTTP API 呼び出し、PostgreSQL 照会を同じシナリオに同居
 - **変数補間**: `${var}` / `$var` でパラメータを動的置換
+- **トレース情報**: Source、Model Revision、実行環境をレポートに埋め込み
+- **CI対応**: GitHub Actions ワークフローを同梱
 
 ## クイックスタート
 
 ```bash
 # 依存関係インストール
-pnpm install
+npm install
 
 # ビルド
-pnpm run build
+npm run build
+
+# CLI でシナリオ実行 (CLIモード)
+node dist/cli/index.js run examples/demo-scenario.yaml --mode cli
 
 # CLI でシナリオ実行 (Webモード)
-pnpm run test
+node dist/web/server.js &
+node dist/cli/index.js run examples/demo-scenario.yaml --mode web --base-url http://localhost:4783
 
-# Webサーバー起動
-pnpm run start:web
+# テスト実行
+node dist/__tests__/driver.test.js
 ```
 
 ## シナリオ記述例
@@ -83,6 +89,9 @@ steps:
 | `assertVisible` | 表示確認 | `selector` |
 | `assertText` | テキスト確認 | `selector`, `text` |
 | `assertUrl` | URL確認 | `url` |
+| `assertValue` | 値の一致確認 | `expected`, `actual` |
+| `assertContains` | 部分一致確認 | `text`, `expected` |
+| `assertJson` | JSON構造・値確認 | `expected`, `actual` |
 | `screenshot` | スクリーンショット | `name`, `fullPage` |
 | `api` | HTTPリクエスト | `method`, `url`, `headers`, `body` |
 | `dbQuery` | DB照会 | `sql`, `db` |
@@ -111,7 +120,12 @@ tmp/ai-test-driver/<run-id>/
   "failedSteps": [],
   "passedSteps": [
     { "name": "スクリーンショット撮影", "kind": "screenshot", "value": { "path": "..." } }
-  ]
+  ],
+  "trace": {
+    "source": "examples/demo-scenario.yaml",
+    "modelRevision": "main-20261110",
+    "environment": { "node": "v20.x", "platform": "win32" }
+  }
 }
 ```
 
@@ -134,6 +148,10 @@ curl -X POST http://localhost:4783/runs \
 # 結果取得
 curl http://localhost:4783/runs/<runId>
 ```
+
+## CI
+
+GitHub Actions ワークフローを `.github/workflows/ci.yml` に同梱しています。
 
 ## ライセンス
 
