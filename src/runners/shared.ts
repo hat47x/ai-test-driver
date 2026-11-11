@@ -24,18 +24,30 @@ export async function runApi(
   const bodyText = typeof resolved.body === 'string' ? resolved.body : undefined;
 
   const res = await timer(async () => {
-    const r = await fetch(url, {
-      method,
-      headers: { 'content-type': 'application/json', ...headers },
-      body: bodyText ? (interpolate(bodyText, ctx.variables) as string) : undefined,
-    });
-    const ct = r.headers.get('content-type') ?? '';
-    const text = await r.text();
-    let parsed: unknown = text;
-    if (ct.includes('application/json')) {
-      try { parsed = JSON.parse(text); } catch { /* keep text */ }
+    const maxAttempts = 2;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const r = await fetch(url, {
+          method,
+          headers: { 'content-type': 'application/json', ...headers },
+          body: bodyText ? (interpolate(bodyText, ctx.variables) as string) : undefined,
+        });
+        const ct = r.headers.get('content-type') ?? '';
+        const text = await r.text();
+        let parsed: unknown = text;
+        if (ct.includes('application/json')) {
+          try { parsed = JSON.parse(text); } catch { /* keep text */ }
+        }
+        return { status: r.status, body: parsed };
+      } catch (e) {
+        lastError = e;
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+      }
     }
-    return { status: r.status, body: parsed };
+    throw lastError;
   });
   return { ...res.result, durationMs: res.durationMs };
 }

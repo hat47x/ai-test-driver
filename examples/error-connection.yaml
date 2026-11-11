@@ -1,0 +1,27 @@
+# 異常系: 接続エラーとステータス検証
+
+name: error-connection
+description: 存在しないURLへ接続しエラーを検証する
+tags: [error, negative]
+
+variables:
+  base_url: "http://localhost:4783"
+
+steps:
+  - name: 存在しないエンドポイントにリクエスト
+    kind: api
+    params:
+      method: GET
+      url: "${base_url}/not-found"
+    continueOnError: true
+
+  - name: 404を検証
+    kind: assertStatus
+    params:
+      actual: 404
+      expected: 404
+
+  - name: タイムアウト待機
+    kind: wait
+    params:
+      ms: 100

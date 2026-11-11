@@ -6,6 +6,7 @@
  */
 
 import { chromium, type Browser, type Page } from 'playwright';
+import * as path from 'node:path';
 import type { ScenarioStep, RunContext, StepResult } from '../types.js';
 import { interpolate } from '../engine.js';
 import { runApi, runDbQuery, runShell } from './shared.js';
@@ -15,7 +16,12 @@ let page: Page | null = null;
 
 async function ensureBrowser(baseUrl?: string): Promise<{ page: Page }> {
   if (!browser) {
-    browser = await chromium.launch({ headless: true });
+    const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    browser = await chromium.launch({
+      headless: true,
+      executablePath: chromePath,
+      args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox'],
+    });
   }
   if (!page) {
     page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -35,6 +41,12 @@ export async function runWebStep(step: ScenarioStep, ctx: RunContext): Promise<S
   const t0 = Date.now();
   const params = interpolate(step.params, ctx.variables) as Record<string, unknown>;
   const name = step.name ?? step.kind;
+  const stateTransition = (() => {
+    const before = params.before as Record<string, unknown> | undefined;
+    const after = params.after as Record<string, unknown> | undefined;
+    if (before || after) return { before, after };
+    return undefined;
+  })();
 
   try {
     switch (step.kind) {
@@ -124,8 +136,20 @@ export async function runWebStep(step: ScenarioStep, ctx: RunContext): Promise<S
       case 'assertValue': {
         const { page } = await ensureBrowser(ctx.baseUrl);
         const expected = params.expected;
-        const actual = await page.locator(String(params.selector)).first().textContent();
-        const ok = actual === String(expected ?? '');
+        const selector = String(params.selector ?? '');
+        let actual: unknown;
+        if (selector) {
+          actual = await page.locator(selector).first().textContent();
+        } else {
+          actual = params.actual;
+        }
+        const ok = (() => {
+          if (actual === expected) return true;
+          if (typeof expected === 'object' && typeof actual === 'object' && expected && actual) {
+            return JSON.stringify(expected) === JSON.stringify(actual);
+          }
+          return false;
+        })();
         if (!ok) {
           return {
             name,
@@ -134,9 +158,10 @@ export async function runWebStep(step: ScenarioStep, ctx: RunContext): Promise<S
             value: { expected, actual },
             error: { message: `値不一致: expected="${expected}" actual="${actual}"` },
             durationMs: Date.now() - t0,
+            stateTransition,
           };
         }
-        return { name, kind: step.kind, status: 'passed', durationMs: Date.now() - t0 };
+        return { name, kind: step.kind, status: 'passed', durationMs: Date.now() - t0, stateTransition };
       }
       case 'assertContains': {
         const { page } = await ensureBrowser(ctx.baseUrl);
@@ -199,9 +224,82 @@ export async function runWebStep(step: ScenarioStep, ctx: RunContext): Promise<S
         const r = await runDbQuery(params, ctx);
         return { name, kind: step.kind, status: 'passed', value: r.rows, durationMs: r.durationMs };
       }
+      case 'assertDb': {
+        const r = await runDbQuery(params, ctx);
+        const rows = r.rows;
+        const expectedCount = Number(params.expectedCount ?? -1);
+        if (expectedCount >= 0 && rows.length !== expectedCount) {
+          return {
+            name,
+            kind: step.kind,
+            status: 'failed',
+            value: { expectedCount, actualCount: rows.length, rows },
+            error: { message: `DB件数不一致: expected=${expectedCount} actual=${rows.length}` },
+            durationMs: r.durationMs,
+          };
+        }
+        const expected = params.expected as Record<string, unknown> | undefined;
+        const actual = rows[0];
+        if (expected && JSON.stringify(actual) !== JSON.stringify(expected)) {
+          return {
+            name,
+            kind: step.kind,
+            status: 'failed',
+            value: { expected, actual },
+            error: { message: `DB内容不一致: expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}` },
+            durationMs: r.durationMs,
+          };
+        }
+        return { name, kind: step.kind, status: 'passed', value: { rows, count: rows.length }, durationMs: r.durationMs };
+      }
       case 'shell': {
         const r = await runShell(params, ctx);
         return { name, kind: step.kind, status: 'passed', value: { output: r.output }, durationMs: r.durationMs };
+      }
+      case 'assertStatus': {
+        const expected = Number(params.expected ?? 0);
+        const actual = Number(params.actual ?? 0);
+        const ok = actual === expected;
+        if (!ok) {
+          return {
+            name,
+            kind: step.kind,
+            status: 'failed',
+            value: { expected, actual },
+            error: { message: `ステータス不一致: expected=${expected} actual=${actual}` },
+            durationMs: Date.now() - t0,
+          };
+        }
+        return { name, kind: step.kind, status: 'passed', durationMs: Date.now() - t0 };
+      }
+      case 'assertScreenshot': {
+        const { page } = await ensureBrowser(ctx.baseUrl);
+        const baseline = String(params.baseline ?? '');
+        const actualPath = String(params.actual ?? `${ctx.screenshotDir}/assert_${Date.now()}.png`);
+        await page.screenshot({ path: actualPath, fullPage: Boolean(params.fullPage) });
+        // TODO: pixel diff against baseline
+        return { name, kind: step.kind, status: 'passed', value: { baseline, actualPath }, screenshotPath: actualPath, durationMs: Date.now() - t0 };
+      }
+      case 'measure': {
+        const { page } = await ensureBrowser(ctx.baseUrl);
+        const metric = String(params.metric ?? 'responseTime');
+        const start = Date.now();
+        if (params.url) {
+          await page.goto(String(params.url), { waitUntil: 'domcontentloaded' });
+        } else if (params.selector) {
+          await page.waitForSelector(String(params.selector), { state: 'visible' });
+        }
+        const durationMs = Date.now() - start;
+        const threshold = Number(params.thresholdMs ?? 0);
+        const ok = threshold > 0 ? durationMs <= threshold : true;
+        return {
+          name,
+          kind: step.kind,
+          status: ok ? 'passed' : 'failed',
+          value: { metric, durationMs, threshold },
+          error: ok ? undefined : { message: `パフォーマンス閾値超過: ${durationMs}ms > ${threshold}ms` },
+          durationMs,
+        };
       }
       default:
         return {

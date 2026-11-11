@@ -17,6 +17,7 @@ import * as os from 'node:os';
 import * as yaml from 'js-yaml';
 import { loadScenarioFromObject } from '../loader.js';
 import { runScenario, interpolate } from '../engine.js';
+import { runCliStep } from '../runners/cli.js';
 import { runWebStep } from '../runners/web.js';
 import { writeReport, writeAiSummary } from '../reporter.js';
 import type { Scenario, ScenarioRunReport, RunContext, RunTrace } from '../types.js';
@@ -60,7 +61,7 @@ async function execScenario(
     trace: opts.trace,
   };
 
-  const runner = opts.mode === 'web' ? runWebStep : runWebStep;
+  const runner = opts.mode === 'web' ? runWebStep : runCliStep;
   const report = await runScenario(scenario, ctx, runner);
 
   if (opts.mode === 'web') {
@@ -102,6 +103,9 @@ app.post('/runs', async (req, res) => {
       const ext = req.body.scenario.split('.').pop()?.toLowerCase();
       const parsed = ext === 'json' ? JSON.parse(raw) : yaml.load(raw);
       scenario = loadScenarioFromObject(parsed, req.body.scenario);
+      if (!scenario.name || !Array.isArray(scenario.steps)) {
+        throw new Error('シナリオ形式が不正です: name/steps が必要です');
+      }
     } else {
       scenario = loadScenarioFromObject(req.body.scenario, '<api-body>');
     }

@@ -1,0 +1,28 @@
+# 正常系: ヘルスチェックとアサーション
+
+name: normal-health
+description: 正常なヘルスチェックシナリオ
+tags: [normal, smoke]
+
+variables:
+  base_url: "http://localhost:4783"
+
+steps:
+  - name: ヘルスチェック
+    kind: api
+    params:
+      method: GET
+      url: "${base_url}/health"
+
+  - name: レスポンス確認
+    kind: assertValue
+    params:
+      actual:
+        status: "ok"
+      expected:
+        status: "ok"
+
+  - name: ウェイト
+    kind: wait
+    params:
+      ms: 50

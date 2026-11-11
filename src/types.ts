@@ -19,9 +19,13 @@ export type StepKind =
   | 'assertValue'    // 値の一致を検証 (JSON/文字列/数値)
   | 'assertContains' // 部分一致を検証
   | 'assertJson'     // JSON構造・値を検証
+  | 'assertDb'       // DB 結果の行数/値を検証
   | 'screenshot'     // スクリーンショットを撮影
+  | 'assertScreenshot' // スクリーンショットを比較 (GUI)
+  | 'measure'        // パフォーマンス測定 (レスポンスタイムなど)
   | 'api'            // HTTP リクエストを送信
   | 'dbQuery'        // DB を照会して結果を検証
+  | 'assertStatus'   // HTTP/DB/Shellの終了ステータスを検証
   | 'shell'          // 任意シェルコマンド
   | 'sleep';         // 明示スリープ (ms)
 
@@ -126,6 +130,13 @@ export interface StepResult {
   screenshotPath?: string;
   /** 関連アーティファクトのパス */
   artifacts?: string[];
+  /** 状態遷移ログ (before/after snapshot) */
+  stateTransition?: {
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+  };
+  /** 失敗時に続行するか */
+  continueOnError?: boolean;
 }
 
 // ─── シナリオ実行結果 ────────────────────────────────────────

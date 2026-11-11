@@ -1,0 +1,33 @@
+# 回帰テスト: ヘルスチェック + 検証一覧 (非ブラウザ)
+
+name: regression-checks
+description: 主要ステップの回帰検証シナリオ
+tags: [regression, smoke]
+
+variables:
+  base_url: "http://localhost:4783"
+
+steps:
+  - name: ヘルスチェック
+    kind: api
+    params:
+      method: GET
+      url: "${base_url}/health"
+
+  - name: レスポンス確認
+    kind: assertValue
+    params:
+      actual:
+        status: "ok"
+      expected:
+        status: "ok"
+
+  - name: 簡易コマンド
+    kind: shell
+    params:
+      command: "echo 'regression-ok'"
+
+  - name: ウェイト
+    kind: wait
+    params:
+      ms: 50

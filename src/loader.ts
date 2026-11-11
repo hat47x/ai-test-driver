@@ -22,9 +22,13 @@ const StepKindSchema = z.enum([
   'assertValue',
   'assertContains',
   'assertJson',
+  'assertDb',
   'screenshot',
+  'assertScreenshot',
+  'measure',
   'api',
   'dbQuery',
+  'assertStatus',
   'shell',
   'sleep',
 ]);

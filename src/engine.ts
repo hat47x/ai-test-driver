@@ -77,6 +77,15 @@ export async function runScenario(
       continue;
     }
     const res = await stepRunner(step, ctx);
+    const stateTransition = (() => {
+      const before = step.params.before as Record<string, unknown> | undefined;
+      const after = step.params.after as Record<string, unknown> | undefined;
+      if (before || after) return { before, after };
+      return undefined;
+    })();
+    if (stateTransition) {
+      res.stateTransition = stateTransition;
+    }
     mainSteps.push(res);
     if (res.status === 'failed' || res.status === 'error') {
       if (!step.continueOnError) {
@@ -104,8 +113,8 @@ export async function runScenario(
     }
   }
 
-  const steps = [...allSteps, ...mainSteps, ...teardownSteps];
-  const failedStepCount = steps.filter((s) => s.status === 'failed' || s.status === 'error').length;
+  const steps = [...allSteps, ...teardownSteps, ...mainSteps];
+  const failedStepCount = steps.filter((s) => (s.status === 'failed' || s.status === 'error') && !s.continueOnError).length;
   const overallStatus: ScenarioRunReport['status'] =
     failedStepCount > 0 ? 'failed' : 'passed';
 

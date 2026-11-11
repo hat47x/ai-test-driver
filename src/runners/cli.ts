@@ -12,12 +12,18 @@ export async function runCliStep(step: ScenarioStep, ctx: RunContext): Promise<S
   const t0 = Date.now();
   const params = interpolate(step.params, ctx.variables) as Record<string, unknown>;
   const name = step.name ?? step.kind;
+  const stateTransition = (() => {
+    const before = params.before as Record<string, unknown> | undefined;
+    const after = params.after as Record<string, unknown> | undefined;
+    if (before || after) return { before, after };
+    return undefined;
+  })();
 
   try {
     switch (step.kind) {
       case 'shell': {
         const r = await runShell(params, ctx);
-        return { name, kind: step.kind, status: 'passed', value: r.output, durationMs: r.durationMs };
+        return { name, kind: step.kind, status: 'passed', value: r.output, durationMs: r.durationMs, stateTransition };
       }
       case 'api': {
         const r = await runApi(params, ctx);
@@ -29,7 +35,7 @@ export async function runCliStep(step: ScenarioStep, ctx: RunContext): Promise<S
       }
       case 'dbQuery': {
         const r = await runDbQuery(params, ctx);
-        return { name, kind: step.kind, status: 'passed', value: r.rows, durationMs: r.durationMs };
+        return { name, kind: step.kind, status: 'passed', value: r.rows, durationMs: r.durationMs, stateTransition };
       }
       case 'wait':
       case 'sleep': {
@@ -40,7 +46,13 @@ export async function runCliStep(step: ScenarioStep, ctx: RunContext): Promise<S
       case 'assertValue': {
         const expected = params.expected;
         const actual = params.actual;
-        const ok = actual === expected;
+        const ok = (() => {
+          if (expected === actual) return true;
+          if (typeof expected === 'object' && typeof actual === 'object' && expected && actual) {
+            return JSON.stringify(expected) === JSON.stringify(actual);
+          }
+          return false;
+        })();
         if (!ok) {
           return {
             name,
@@ -49,9 +61,10 @@ export async function runCliStep(step: ScenarioStep, ctx: RunContext): Promise<S
             value: { expected, actual },
             error: { message: `値不一致: expected="${expected}" actual="${actual}"` },
             durationMs: Date.now() - t0,
+            stateTransition,
           };
         }
-        return { name, kind: step.kind, status: 'passed', durationMs: Date.now() - t0 };
+        return { name, kind: step.kind, status: 'passed', durationMs: Date.now() - t0, stateTransition };
       }
       case 'assertContains': {
         const text = String(params.text ?? '');
@@ -80,6 +93,50 @@ export async function runCliStep(step: ScenarioStep, ctx: RunContext): Promise<S
             status: 'failed',
             value: { expected, actual },
             error: { message: `JSON不一致: expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}` },
+            durationMs: Date.now() - t0,
+          };
+        }
+        return { name, kind: step.kind, status: 'passed', durationMs: Date.now() - t0 };
+      }
+      case 'assertDb': {
+        const r = await runDbQuery(params, ctx);
+        const rows = r.rows;
+        const expectedCount = Number(params.expectedCount ?? -1);
+        if (expectedCount >= 0 && rows.length !== expectedCount) {
+          return {
+            name,
+            kind: step.kind,
+            status: 'failed',
+            value: { expectedCount, actualCount: rows.length, rows },
+            error: { message: `DB件数不一致: expected=${expectedCount} actual=${rows.length}` },
+            durationMs: r.durationMs,
+          };
+        }
+        const expected = params.expected as Record<string, unknown> | undefined;
+        const actual = rows[0];
+        if (expected && JSON.stringify(actual) !== JSON.stringify(expected)) {
+          return {
+            name,
+            kind: step.kind,
+            status: 'failed',
+            value: { expected, actual },
+            error: { message: `DB内容不一致: expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}` },
+            durationMs: r.durationMs,
+          };
+        }
+        return { name, kind: step.kind, status: 'passed', value: { rows, count: rows.length }, durationMs: r.durationMs };
+      }
+      case 'assertStatus': {
+        const expected = Number(params.expected ?? 0);
+        const actual = Number(params.actual ?? 0);
+        const ok = actual === expected;
+        if (!ok) {
+          return {
+            name,
+            kind: step.kind,
+            status: 'failed',
+            value: { expected, actual },
+            error: { message: `ステータス不一致: expected=${expected} actual=${actual}` },
             durationMs: Date.now() - t0,
           };
         }

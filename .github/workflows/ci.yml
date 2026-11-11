@@ -20,7 +20,11 @@ jobs:
         continue-on-error: true
       - run: node dist/cli/index.js run examples/demo-assertions.yaml --mode cli
         continue-on-error: true
-      - run: node dist/cli/index.js run examples/demo-browser.yaml --mode web --base-url about:blank
+      - run: node dist/cli/index.js run examples/normal-health.yaml --mode cli
+        continue-on-error: true
+      - run: node dist/cli/index.js run examples/error-connection.yaml --mode cli
+        continue-on-error: true
+      - run: node dist/cli/index.js run examples/regression-checks.yaml --mode cli
         continue-on-error: true
       - run: node dist/__tests__/driver.test.js
         continue-on-error: true
